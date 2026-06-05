@@ -62,56 +62,67 @@ SCOPES = [
 
 # ── Apify ────────────────────────────────────────────────────────────────────
 
-def scrape_groups() -> list[dict]:
-    """Run Apify actor; return raw dataset items."""
-    base_url = "https://api.apify.com/v2"
-    headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
-    payload  = {
-        "startUrls": [{"url": u} for u in TARGET_GROUPS],
-        "resultsLimit": 200,
+def _scrape_one_group(url: str, base_url: str, headers: dict, cookies: list) -> list[dict]:
+    """Scrape jednu skupinu, max 30 příspěvků. Vrátí seznam nebo []."""
+    payload = {
+        "startUrls": [{"url": url}],
+        "resultsLimit": 30,
         "viewOption": "CHRONOLOGICAL",
     }
+    if cookies:
+        payload["cookies"] = cookies
 
-    # Merge FB cookies from env if provided (export from browser via Cookie-Editor extension)
+    sync_url = f"{base_url}/acts/{APIFY_ACTOR_ID}/run-sync-get-dataset-items?timeout=120"
+    resp = requests.post(sync_url, json=payload, headers=headers, timeout=130)
+    if resp.status_code == 200:
+        return resp.json()
+
+    # Sync timed out → async
+    run_resp = requests.post(f"{base_url}/acts/{APIFY_ACTOR_ID}/runs",
+                             json=payload, headers=headers, timeout=30)
+    if not run_resp.ok:
+        print(f"  WARN: nelze spustit run pro {url}: {run_resp.text[:100]}")
+        return []
+    run_id = run_resp.json()["data"]["id"]
+
+    for attempt in range(20):
+        time.sleep(15)
+        st = requests.get(f"{base_url}/actor-runs/{run_id}", headers=headers, timeout=15).json()["data"]
+        print(f"    {url[-30:]} → {st['status']} (pokus {attempt + 1})")
+        if st["status"] == "SUCCEEDED":
+            items = requests.get(
+                f"{base_url}/datasets/{st['defaultDatasetId']}/items",
+                headers=headers, timeout=30
+            ).json()
+            return items
+        if st["status"] in ("FAILED", "ABORTED", "TIMED-OUT"):
+            print(f"  WARN: run pro {url} skončil: {st['status']}")
+            return []
+    return []
+
+
+def scrape_groups() -> list[dict]:
+    """Scrape každou skupinu zvlášť (max 30 příspěvků), vrať sloučené výsledky."""
+    base_url = "https://api.apify.com/v2"
+    headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
+
+    cookies = []
     fb_cookies_raw = os.environ.get("FB_COOKIES", "")
     if fb_cookies_raw:
         import json as _json
         try:
-            payload["cookies"] = _json.loads(fb_cookies_raw)
+            cookies = _json.loads(fb_cookies_raw)
         except Exception:
             print("WARN: FB_COOKIES není validní JSON, ignoruji.")
 
-    # Try sync run first (300 s limit)
-    sync_url = f"{base_url}/acts/{APIFY_ACTOR_ID}/run-sync-get-dataset-items?timeout=300"
-    print("Spouštím Apify actor (sync)…")
-    resp = requests.post(sync_url, json=payload, headers=headers, timeout=330)
+    all_items = []
+    for url in TARGET_GROUPS:
+        print(f"  Scraping: {url}")
+        items = _scrape_one_group(url, base_url, headers, cookies)
+        print(f"    → {len(items)} příspěvků")
+        all_items.extend(items)
 
-    if resp.status_code == 200:
-        return resp.json()
-
-    # Sync timed out → async run + poll
-    print("Sync timeout, přepínám na async…")
-    run_url = f"{base_url}/acts/{APIFY_ACTOR_ID}/runs"
-    run_resp = requests.post(run_url, json=payload, headers=headers, timeout=30)
-    run_resp.raise_for_status()
-    run_id = run_resp.json()["data"]["id"]
-
-    for attempt in range(60):
-        time.sleep(15)
-        status_resp = requests.get(f"{base_url}/actor-runs/{run_id}", headers=headers, timeout=15)
-        status = status_resp.json()["data"]["status"]
-        print(f"  Run status: {status} (pokus {attempt + 1})")
-        if status == "SUCCEEDED":
-            dataset_id = status_resp.json()["data"]["defaultDatasetId"]
-            items_resp = requests.get(
-                f"{base_url}/datasets/{dataset_id}/items", headers=headers, timeout=30
-            )
-            items_resp.raise_for_status()
-            return items_resp.json()
-        if status in ("FAILED", "ABORTED", "TIMED-OUT"):
-            raise RuntimeError(f"Apify run skončil se stavem: {status}")
-
-    raise RuntimeError("Apify run neprobyl do 15 minut.")
+    return all_items
 
 
 # ── Filter ───────────────────────────────────────────────────────────────────
