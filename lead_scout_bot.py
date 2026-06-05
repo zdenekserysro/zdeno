@@ -37,6 +37,7 @@ TARGET_GROUPS = [
     "https://www.facebook.com/groups/287664108356109/",
     "https://www.facebook.com/groups/463605933996976/",
     "https://www.facebook.com/groups/2495561120477741/",
+    "https://www.facebook.com/groups/1515872495956629/",
     # 417445449007644 a 291557751321339 jsou privátní skupiny — vynechány
 ]
 
@@ -48,10 +49,19 @@ SEARCH_KEYWORDS = [
     "poptávka",
 ]
 
+# Příspěvky obsahující tato slova se rovnou vyřadí (pracovní nabídky, ne poptávky)
+NEGATIVE_KEYWORDS = [
+    "brigáda", "brigadu", "brigády",
+    "hpp", "h.p.p",
+    "nabízím", "nabizim", "nabízíme", "nabizime",
+    "junior", "juniorní",
+    "student", "studenta", "studentů", "stáž", "staz",
+]
+
 DEMAND_SIGNALS = [
     "poptávám", "hledám", "sháním", "potřebuji", "kdo umí",
     "doporučte", "hledáme", "přijmeme", "nabízíme práci",
-    "brigáda", "sháníme někoho", "poptávka", "hledá se",
+    "sháníme někoho", "poptávka", "hledá se",
 ]
 
 RELEVANT_TOPICS = [
@@ -70,14 +80,13 @@ SCOPES = [
 
 # ── Apify ────────────────────────────────────────────────────────────────────
 
-def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list,
-               since: datetime.datetime) -> list[dict]:
+def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list) -> list[dict]:
     """Spustí Apify actor pro dané URL s filtrem 24h, vrátí dataset items."""
     payload = {
         "startUrls": start_urls,
         "resultsLimit": 50,
         "viewOption": "CHRONOLOGICAL",
-        "minPostDate": since.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "onlyPostsNewerThan": "1 day",
     }
     if cookies:
         payload["cookies"] = cookies
@@ -108,7 +117,6 @@ def scrape_groups() -> list[dict]:
     import urllib.parse
     base_url = "https://api.apify.com/v2"
     headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
-    since    = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 
     cookies = []
     fb_cookies_raw = os.environ.get("FB_COOKIES", "")
@@ -127,7 +135,7 @@ def scrape_groups() -> list[dict]:
         for keyword in SEARCH_KEYWORDS:
             search_url = f"https://www.facebook.com/groups/{group_id}/search/?q={urllib.parse.quote(keyword)}"
             print(f"  Hledám '{keyword}' v {group_id}…")
-            items = _run_apify([{"url": search_url}], base_url, headers, cookies, since)
+            items = _run_apify([{"url": search_url}], base_url, headers, cookies)
             print(f"    → {len(items)} výsledků za 24h")
             for item in items:
                 uid = item.get("id") or item.get("url", "")
@@ -158,6 +166,8 @@ def _is_recent(post: dict, cutoff: datetime.datetime) -> bool:
 
 def is_lead(post: dict) -> bool:
     text = _text(post)
+    if any(n in text for n in NEGATIVE_KEYWORDS):
+        return False
     has_signal = any(s in text for s in DEMAND_SIGNALS)
     has_topic  = any(t in text for t in RELEVANT_TOPICS)
     return has_signal and has_topic
