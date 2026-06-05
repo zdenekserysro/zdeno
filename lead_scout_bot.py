@@ -12,6 +12,16 @@ import requests
 import gspread
 from google.oauth2.service_account import Credentials
 
+# Načti .env soubor pokud existuje
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 # ── Config ──────────────────────────────────────────────────────────────────
 APIFY_TOKEN    = os.environ["APIFY_TOKEN"]
 APIFY_ACTOR_ID = os.environ["APIFY_ACTOR_ID"]
@@ -58,7 +68,7 @@ def scrape_groups() -> list[dict]:
     headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
     payload  = {
         "startUrls": [{"url": u} for u in TARGET_GROUPS],
-        "resultsLimit": 10000,
+        "resultsLimit": 200,
         "viewOption": "CHRONOLOGICAL",
     }
 
