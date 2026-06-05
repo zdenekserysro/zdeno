@@ -42,7 +42,10 @@ TARGET_GROUPS = [
 
 # Klíčová slova pro Facebook search — každá skupina se prohledá podle každého z nich
 SEARCH_KEYWORDS = [
-    "hledám", "hledáme", "sháním", "poptávám", "poptávka", "přijmeme",
+    "hledám", "hledam",
+    "hledáme", "hledame",
+    "sháním", "shanim",
+    "poptáv", "poptav",
 ]
 
 DEMAND_SIGNALS = [
