@@ -40,6 +40,11 @@ TARGET_GROUPS = [
     # 417445449007644 a 291557751321339 jsou privátní skupiny — vynechány
 ]
 
+# Klíčová slova pro Facebook search — každá skupina se prohledá podle každého z nich
+SEARCH_KEYWORDS = [
+    "hledám", "hledáme", "sháním", "poptávám", "poptávka", "přijmeme",
+]
+
 DEMAND_SIGNALS = [
     "poptávám", "hledám", "sháním", "potřebuji", "kdo umí",
     "doporučte", "hledáme", "přijmeme", "nabízíme práci",
@@ -62,11 +67,11 @@ SCOPES = [
 
 # ── Apify ────────────────────────────────────────────────────────────────────
 
-def _scrape_one_group(url: str, base_url: str, headers: dict, cookies: list) -> list[dict]:
-    """Scrape jednu skupinu, max 200 příspěvků. Kód pak zahodí vše starší 24h."""
+def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list) -> list[dict]:
+    """Spustí Apify actor pro dané URL, vrátí dataset items."""
     payload = {
-        "startUrls": [{"url": url}],
-        "resultsLimit": 200,
+        "startUrls": start_urls,
+        "resultsLimit": 50,
         "viewOption": "CHRONOLOGICAL",
     }
     if cookies:
@@ -77,32 +82,29 @@ def _scrape_one_group(url: str, base_url: str, headers: dict, cookies: list) -> 
     if resp.status_code == 200:
         return resp.json()
 
-    # Sync timed out → async
     run_resp = requests.post(f"{base_url}/acts/{APIFY_ACTOR_ID}/runs",
                              json=payload, headers=headers, timeout=30)
     if not run_resp.ok:
-        print(f"  WARN: nelze spustit run pro {url}: {run_resp.text[:100]}")
+        print(f"  WARN: {run_resp.text[:100]}")
         return []
     run_id = run_resp.json()["data"]["id"]
 
     for attempt in range(20):
         time.sleep(15)
         st = requests.get(f"{base_url}/actor-runs/{run_id}", headers=headers, timeout=15).json()["data"]
-        print(f"    {url[-30:]} → {st['status']} (pokus {attempt + 1})")
         if st["status"] == "SUCCEEDED":
-            items = requests.get(
+            return requests.get(
                 f"{base_url}/datasets/{st['defaultDatasetId']}/items",
                 headers=headers, timeout=30
             ).json()
-            return items
         if st["status"] in ("FAILED", "ABORTED", "TIMED-OUT"):
-            print(f"  WARN: run pro {url} skončil: {st['status']}")
+            print(f"  WARN: run skončil: {st['status']}")
             return []
     return []
 
 
 def scrape_groups() -> list[dict]:
-    """Scrape každou skupinu zvlášť (max 30 příspěvků), vrať sloučené výsledky."""
+    """Hledá v každé skupině podle klíčových slov — mnohem levnější než scrape všeho."""
     base_url = "https://api.apify.com/v2"
     headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
 
@@ -115,12 +117,23 @@ def scrape_groups() -> list[dict]:
         except Exception:
             print("WARN: FB_COOKIES není validní JSON, ignoruji.")
 
+    seen_ids = set()
     all_items = []
-    for url in TARGET_GROUPS:
-        print(f"  Scraping: {url}")
-        items = _scrape_one_group(url, base_url, headers, cookies)
-        print(f"    → {len(items)} příspěvků")
-        all_items.extend(items)
+
+    for group_url in TARGET_GROUPS:
+        # Vytáhni group ID nebo slug pro search URL
+        group_id = group_url.rstrip("/").split("/groups/")[-1].rstrip("/")
+        for keyword in SEARCH_KEYWORDS:
+            import urllib.parse
+            search_url = f"https://www.facebook.com/groups/{group_id}/search/?q={urllib.parse.quote(keyword)}"
+            print(f"  Hledám '{keyword}' v {group_id}…")
+            items = _run_apify([{"url": search_url}], base_url, headers, cookies)
+            print(f"    → {len(items)} výsledků")
+            for item in items:
+                uid = item.get("id") or item.get("url", "")
+                if uid not in seen_ids:
+                    seen_ids.add(uid)
+                    all_items.append(item)
 
     return all_items
 
