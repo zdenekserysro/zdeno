@@ -231,19 +231,29 @@ def write_to_sheet(leads: list[dict]):
             False,  # checkbox
         ])
 
-    # Append rows
+    # Append rows (FALSE v sloupci E = checkbox přes USER_ENTERED)
     ws.append_rows(rows, value_input_option="USER_ENTERED")
 
-    # Add checkboxes to column E for new rows
-    last_header_row = 1
+    # Nastav checkboxy přes Sheets API setDataValidation
     existing = len(ws.get_all_values())
     new_start = existing - len(rows) + 1
-    e_range = f"E{new_start}:E{existing}"
-    ws.format(e_range, {"dataValidation": {
-        "condition": {"type": "BOOLEAN"},
-        "strict": True,
-        "showCustomUi": True,
-    }})
+    spreadsheet = ws.spreadsheet
+    spreadsheet.batch_update({"requests": [{
+        "setDataValidation": {
+            "range": {
+                "sheetId": ws.id,
+                "startRowIndex": new_start - 1,
+                "endRowIndex": existing,
+                "startColumnIndex": 4,
+                "endColumnIndex": 5,
+            },
+            "rule": {
+                "condition": {"type": "BOOLEAN"},
+                "strict": True,
+                "showCustomUi": True,
+            }
+        }
+    }]})
 
     print(f"Zapsáno {len(leads)} leadů do sheetu.")
 
