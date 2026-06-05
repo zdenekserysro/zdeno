@@ -25,10 +25,9 @@ TARGET_GROUPS = [
     "https://www.facebook.com/groups/2095153874099421",
     "https://www.facebook.com/groups/310025138111994/",
     "https://www.facebook.com/groups/287664108356109/",
-    "https://www.facebook.com/groups/417445449007644/",
     "https://www.facebook.com/groups/463605933996976/",
-    "https://www.facebook.com/groups/291557751321339/",
     "https://www.facebook.com/groups/2495561120477741/",
+    # 417445449007644 a 291557751321339 jsou privátní skupiny — vynechány
 ]
 
 DEMAND_SIGNALS = [
@@ -62,6 +61,15 @@ def scrape_groups() -> list[dict]:
         "resultsLimit": 10000,
         "viewOption": "CHRONOLOGICAL",
     }
+
+    # Merge FB cookies from env if provided (export from browser via Cookie-Editor extension)
+    fb_cookies_raw = os.environ.get("FB_COOKIES", "")
+    if fb_cookies_raw:
+        import json as _json
+        try:
+            payload["cookies"] = _json.loads(fb_cookies_raw)
+        except Exception:
+            print("WARN: FB_COOKIES není validní JSON, ignoruji.")
 
     # Try sync run first (300 s limit)
     sync_url = f"{base_url}/acts/{APIFY_ACTOR_ID}/run-sync-get-dataset-items?timeout=300"
