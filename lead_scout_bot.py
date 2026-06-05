@@ -45,7 +45,11 @@ SEARCH_KEYWORDS = [
     "hledám", "hledam",
     "hledáme", "hledame",
     "sháním", "shanim",
-    "poptáv", "poptav",
+    "sháníme", "shanime",
+    "poptávám", "poptavam",
+    "poptáváme", "poptavame",
+    "poptávka", "poptavka",
+    "poptávku", "poptavku",
 ]
 
 DEMAND_SIGNALS = [
