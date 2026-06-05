@@ -63,10 +63,10 @@ SCOPES = [
 # ── Apify ────────────────────────────────────────────────────────────────────
 
 def _scrape_one_group(url: str, base_url: str, headers: dict, cookies: list) -> list[dict]:
-    """Scrape jednu skupinu, max 30 příspěvků. Vrátí seznam nebo []."""
+    """Scrape jednu skupinu, max 50 příspěvků (pokryje 24h). Vrátí seznam nebo []."""
     payload = {
         "startUrls": [{"url": url}],
-        "resultsLimit": 30,
+        "resultsLimit": 50,
         "viewOption": "CHRONOLOGICAL",
     }
     if cookies:
