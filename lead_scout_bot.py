@@ -212,16 +212,11 @@ def write_to_sheet(leads: list[dict]):
     gc         = get_sheet_client()
     sheet_id   = _sheet_id_from_url(GOOGLE_SHEET_URL)
     spreadsheet = gc.open_by_key(sheet_id)
-    today      = datetime.date.today().isoformat()  # YYYY-MM-DD
+    tab_name = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # Get or create today's tab
-    try:
-        ws = spreadsheet.worksheet(today)
-        print(f"Tab '{today}' už existuje, přidávám…")
-    except gspread.exceptions.WorksheetNotFound:
-        ws = spreadsheet.add_worksheet(title=today, rows=500, cols=5)
-        print(f"Vytvářím nový tab '{today}'…")
-        ws.append_row(["Popis", "Odkaz", "Skupina", "Email", "Hotovo"])
+    ws = spreadsheet.add_worksheet(title=tab_name, rows=500, cols=5)
+    print(f"Vytvářím nový tab '{tab_name}'…")
+    ws.append_row(["Popis", "Odkaz", "Skupina", "Email", "Hotovo"])
 
     if not leads:
         ws.append_row(["Žádné nové poptávky za posledních 24 h.", "", "", "", ""])
