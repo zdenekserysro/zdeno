@@ -70,20 +70,17 @@ SCOPES = [
 
 # ── Apify ────────────────────────────────────────────────────────────────────
 
-def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list) -> list[dict]:
-    """Spustí Apify actor pro dané URL, vrátí dataset items."""
+def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list,
+               since: datetime.datetime) -> list[dict]:
+    """Spustí Apify actor pro dané URL s filtrem 24h, vrátí dataset items."""
     payload = {
         "startUrls": start_urls,
         "resultsLimit": 50,
         "viewOption": "CHRONOLOGICAL",
+        "minPostDate": since.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
     }
     if cookies:
         payload["cookies"] = cookies
-
-    sync_url = f"{base_url}/acts/{APIFY_ACTOR_ID}/run-sync-get-dataset-items?timeout=120"
-    resp = requests.post(sync_url, json=payload, headers=headers, timeout=130)
-    if resp.status_code == 200:
-        return resp.json()
 
     run_resp = requests.post(f"{base_url}/acts/{APIFY_ACTOR_ID}/runs",
                              json=payload, headers=headers, timeout=30)
@@ -93,7 +90,7 @@ def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list) ->
     run_id = run_resp.json()["data"]["id"]
 
     for attempt in range(20):
-        time.sleep(15)
+        time.sleep(10)
         st = requests.get(f"{base_url}/actor-runs/{run_id}", headers=headers, timeout=15).json()["data"]
         if st["status"] == "SUCCEEDED":
             return requests.get(
@@ -107,9 +104,11 @@ def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list) ->
 
 
 def scrape_groups() -> list[dict]:
-    """Hledá v každé skupině podle klíčových slov — mnohem levnější než scrape všeho."""
+    """Hledá v každé skupině podle klíčových slov, jen příspěvky za posledních 24h."""
+    import urllib.parse
     base_url = "https://api.apify.com/v2"
     headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
+    since    = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 
     cookies = []
     fb_cookies_raw = os.environ.get("FB_COOKIES", "")
@@ -124,14 +123,12 @@ def scrape_groups() -> list[dict]:
     all_items = []
 
     for group_url in TARGET_GROUPS:
-        # Vytáhni group ID nebo slug pro search URL
         group_id = group_url.rstrip("/").split("/groups/")[-1].rstrip("/")
         for keyword in SEARCH_KEYWORDS:
-            import urllib.parse
             search_url = f"https://www.facebook.com/groups/{group_id}/search/?q={urllib.parse.quote(keyword)}"
             print(f"  Hledám '{keyword}' v {group_id}…")
-            items = _run_apify([{"url": search_url}], base_url, headers, cookies)
-            print(f"    → {len(items)} výsledků")
+            items = _run_apify([{"url": search_url}], base_url, headers, cookies, since)
+            print(f"    → {len(items)} výsledků za 24h")
             for item in items:
                 uid = item.get("id") or item.get("url", "")
                 if uid not in seen_ids:
@@ -166,8 +163,8 @@ def is_lead(post: dict) -> bool:
     return has_signal and has_topic
 
 def filter_posts(items: list[dict]) -> list[dict]:
-    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
-    return [p for p in items if _is_recent(p, cutoff) and is_lead(p)]
+    # 24h filtr řeší Apify nativně přes minPostDate — tady jen filtrujeme téma
+    return [p for p in items if is_lead(p)]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
