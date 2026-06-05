@@ -59,8 +59,8 @@ def scrape_groups() -> list[dict]:
     headers  = {"Authorization": f"Bearer {APIFY_TOKEN}", "Content-Type": "application/json"}
     payload  = {
         "startUrls": [{"url": u} for u in TARGET_GROUPS],
-        "resultsType": "posts",
-        "resultsLimit": 50,
+        "resultsLimit": 10000,
+        "viewOption": "CHRONOLOGICAL",
     }
 
     # Try sync run first (300 s limit)
@@ -143,15 +143,10 @@ def _short_desc(post: dict) -> str:
     return text[:150]
 
 def _post_url(post: dict) -> str:
-    return post.get("url") or post.get("postUrl") or post.get("link") or ""
+    return post.get("url") or post.get("facebookUrl") or post.get("link") or ""
 
 def _group_name(post: dict) -> str:
-    return (
-        post.get("groupName")
-        or post.get("pageName")
-        or post.get("group", {}).get("name", "")
-        or ""
-    )
+    return post.get("groupTitle") or post.get("title") or ""
 
 
 # ── Google Sheets ────────────────────────────────────────────────────────────
