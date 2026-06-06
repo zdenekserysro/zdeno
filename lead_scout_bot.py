@@ -65,15 +65,12 @@ DEMAND_SIGNALS = [
 ]
 
 RELEVANT_TOPICS = [
-    "market", "ppc", "meta ads", "google ads",
+    "marketing", "marketingový", "ppc", "meta ads", "google ads",
     "reklam", "správa reklam",
     "tvorba webu", "webové stránky", "web na míru", "e-shop", "eshop", "landing page",
-    "email market", "newsletter", "mailin", "copywritin",
-    "obsah", "content",
-    "sociální sít", "instagram", "facebook", "tiktok", "správa soc",
-    "grafik", "vizuáln", "brand", "identit",
-    "seo",
-    "video", "reels", "střih", "youtube",
+    "email marketing", "newsletter", "mailing", "copywriting",
+    "obsah", "content", "sociální sítě", "grafika", "seo",
+    "video", "reels", "střih", "tvorba videí",
 ]
 
 SCOPES = [
