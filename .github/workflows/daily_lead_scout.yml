@@ -1,0 +1,36 @@
+name: Daily Lead Scout
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # 8:00 Praha (UTC+2 léto / UTC+1 zima) = 6:00 UTC
+  workflow_dispatch:       # možnost spustit ručně
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write Google credentials
+        run: echo "$GOOGLE_CREDENTIALS_JSON" > google_credentials.json
+        env:
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+
+      - name: Run bot
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_ACTOR_ID: ${{ secrets.APIFY_ACTOR_ID }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+          FB_COOKIES: ${{ secrets.FB_COOKIES }}
+          GOOGLE_CREDENTIALS_FILE: google_credentials.json
+        run: python lead_scout_bot.py
