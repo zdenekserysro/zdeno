@@ -84,7 +84,7 @@ def _run_apify(start_urls: list, base_url: str, headers: dict, cookies: list) ->
     """Spustí Apify actor pro dané URL s filtrem 24h, vrátí dataset items."""
     payload = {
         "startUrls": start_urls,
-        "resultsLimit": 50,
+        "resultsLimit": 100,
         "viewOption": "CHRONOLOGICAL",
         "onlyPostsNewerThan": "1 day",
     }
